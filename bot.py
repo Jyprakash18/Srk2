@@ -320,5 +320,15 @@ def main():
     app.run_polling()
 
 
+import asyncio
+
 if __name__ == "__main__":
+    try:
+        # Naye Python versions ke liye event loop setup karna
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+    # main() function ko loop ke andar run karein
     main()
