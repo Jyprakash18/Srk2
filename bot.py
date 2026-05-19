@@ -288,15 +288,40 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
 
+import os
+import threading
+import asyncio
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# 1. Render Web Service ko active rakhne ke liye dummy server
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Bot is alive and running!")
+
+def run_dummy_server():
+    # Render automatic PORT variable deta hai, nahi toh default 8080
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), DummyServer)
+    print(f"Dummy Web Server started on port {port}")
+    server.serve_forever()
+
+# 2. Aapka main function (Jo pehle line 291 par tha)
 def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN missing in environment variables.")
-
+    
     init_db()
     add_admin(OWNER_ID)
-
+    
+    # Background thread mein dummy web server ko start karna taaki Render Timeout na kare
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     app = Application.builder().token(BOT_TOKEN).build()
-
+    
+    # Aapke saare handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("addchannel", add_channel_cmd))
@@ -306,29 +331,28 @@ def main():
     app.add_handler(CommandHandler("removeadmin", remove_admin_cmd))
     app.add_handler(CommandHandler("analytics", analytics_cmd))
     app.add_handler(CommandHandler("setjoinurl", set_join_url_cmd))
-
+    
     app.add_handler(CallbackQueryHandler(button_callback))
-
+    
     app.add_handler(
         MessageHandler(
             filters.TEXT | filters.CaptionRegex(".*") | filters.PHOTO,
             handle_message
         )
     )
-
+    
     print("Bot running...")
     app.run_polling()
 
-
-import asyncio
-
+# 3. Naye Python (3.14) ke liye event loop handling aur execution
 if __name__ == "__main__":
     try:
-        # Naye Python versions ke liye event loop setup karna
         loop = asyncio.get_event_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
-    # main() function ko loop ke andar run karein
-    main()
+    
+    if loop.is_running():
+        threading.Thread(target=main).start()
+    else:
+        main()
